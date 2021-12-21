@@ -3,7 +3,8 @@
     "replay_size": 1000000,
     "rollout_batch_size": 100000,
     "epoch_length": 1000,
-    "model_train_freq": 250,
+    "model_train_freq": 2000,
+    "rollout_freq": 250,
     "model_retain_epochs": 1,
     "max_path_length": 1000,
     "init_exploration_steps": 5000,
@@ -41,7 +42,7 @@
         "beta_min": 0.1,
         "beta_max": 3.0,
         "beta_min_epoch": 100,
-        "beta_max_peoch": 0
+        "beta_max_epoch": 0
     }
 }
   

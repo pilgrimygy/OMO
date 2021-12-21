@@ -21,12 +21,14 @@ import click
 from utils import Logger, load_config
 
 
-def train(args, env_sampler, predict_env, agent, env_pool, model_pool, writer):
+def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, model_pool, logger):
     rollout_length = 1
 
     start = time.time()
 
     exploration_before_start(args, env_sampler, env_pool, agent)
+
+    train_predict_model(args, env_pool, predict_env)
 
     total_step = args["init_exploration_steps"]
 
@@ -64,7 +66,7 @@ def train(args, env_sampler, predict_env, agent, env_pool, model_pool, writer):
             cur_state, action, next_state, reward, done, info = env_sampler.sample(agent)
             env_pool.push(cur_state, action, reward, next_state, done)
                     
-            if len(env_pool) > args.min_pool_size:
+            if len(env_pool) > args["min_pool_size"]:
                 train_policy_steps += jointly_train_policy_model(args, total_step, train_policy_steps, env_pool, model_pool, agent, predict_env, beta, logger)
 
             total_step += 1
@@ -192,7 +194,7 @@ def jointly_train_policy_model(args, total_step, train_step, env_pool, model_poo
         logger.log_var("model_j_loss", model_j_loss_step / args["num_train_repeat"], total_step)
         logger.log_var("model_d_loss", model_d_loss_step / args["num_train_repeat"], total_step)
 
-    return args.num_train_repeat
+    return args["num_train_repeat"]
 
 
 from gym.spaces import Box
