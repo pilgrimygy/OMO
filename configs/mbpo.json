@@ -1,0 +1,39 @@
+{
+    "env_name": "",
+    "replay_size": 1000000,
+    "rollout_batch_size": 100000,
+    "epoch_length": 1000,
+    "model_train_freq": 250,
+    "model_retain_epochs": 1,
+    "max_path_length": 1000,
+    "init_exploration_steps": 5000,
+    "min_pool_size": 1000,
+    "real_ratio": 0.05,
+    "max_train_repeat_per_step": 5,
+    "log_interval": 200,
+    "eval_num": 10,
+
+    "agent": {
+        "gamma": 0.99,
+        "tau": 0.005,
+        "alpha": 0.2,
+        "policy": "Gaussian",
+        "target_update_interval": 1,
+        "automatic_entropy_tuning": true,
+        "hidden_size": 256,
+        "critic_lr": 3e-4,
+        "policy_lr": 3e-4,
+        "alpha_lr": 3e-4,
+        "batch_size": 256
+    },
+
+    "model": {
+        "model_type": "pytorch",
+        "use_decay": true,
+        "num_networks": 7,
+        "num_elites": 5,
+        "reward_size": 1,
+        "pred_hidden_size": 200
+    }
+}
+  

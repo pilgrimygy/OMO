@@ -21,7 +21,7 @@ import click
 from utils import Logger, load_config
 
 
-def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, model_pool, logger):
+def train(args, env_sampler, predict_env, agent, env_pool, model_pool, writer):
     rollout_length = 1
 
     start = time.time()
@@ -36,16 +36,22 @@ def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, mod
         logger.log_str(f"Epoch: {epoch_step+1}")
         start_step = total_step
         train_policy_steps = 0
+
+        beta = set_beta(args["beta"], epoch_step)
+        logger.log_var("beta", beta, epoch_step)
+
         for i in count():
             cur_step = total_step - start_step
 
             if cur_step >= args['epoch_length'] and len(env_pool) > args['min_pool_size']:
                 break
-
-            if cur_step % args['model_train_freq'] == 0 and args['real_ratio'] < 1.0:  
+            
+            if total_step % args['model_train_freq'] == 0 and args['real_ratio'] < 1.0:
                 logger.log_str("Training model")
                 train_predict_model(args, env_pool, predict_env)
-
+                
+            if cur_step % args['rollout_freq'] == 0 and args['real_ratio'] < 1.0:
+                
                 new_rollout_length = set_rollout_length(args, epoch_step)
                 if rollout_length != new_rollout_length:
                     logger.log_str(f"Rollout length: {rollout_length} -> {new_rollout_length}")
@@ -57,9 +63,9 @@ def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, mod
 
             cur_state, action, next_state, reward, done, info = env_sampler.sample(agent)
             env_pool.push(cur_state, action, reward, next_state, done)
-
-            if len(env_pool) > args["min_pool_size"]:
-                train_policy_steps += train_policy_repeats(args, total_step, train_policy_steps, env_pool, model_pool, agent, logger)
+                    
+            if len(env_pool) > args.min_pool_size:
+                train_policy_steps += jointly_train_policy_model(args, total_step, train_policy_steps, env_pool, model_pool, agent, predict_env, beta, logger)
 
             total_step += 1
 
@@ -88,6 +94,12 @@ def exploration_before_start(args, env_sampler, env_pool, agent):
     for i in range(args["init_exploration_steps"]):
         cur_state, action, next_state, reward, done, info = env_sampler.sample(agent)
         env_pool.push(cur_state, action, reward, next_state, done)
+
+
+def set_beta(args, epoch_step):
+    beta = args["beta_max"] + (epoch_step - args["beta_max_epoch"]) * ((args["beta_max"] - args["beta_min"]) / (args["beta_max_epoch"] - args["beta_min_epoch"]))
+    beta = max(min(args["beta_max"], beta), args["beta_min"])
+    return beta
 
 
 def set_rollout_length(args, epoch_step):
@@ -134,14 +146,16 @@ def rollout_model(args, predict_env, agent, model_pool, env_pool, rollout_length
     logger.log_var("Rollout length", num_total_samples / args["rollout_batch_size"], total_step)
 
 
-def train_policy_repeats(args, total_step, train_step, env_pool, model_pool, agent, logger):
+def jointly_train_policy_model(args, total_step, train_step, env_pool, model_pool, agent, predict_env, beta, logger):
     if train_step > args["max_train_repeat_per_step"] * total_step:
         return 0
-    
+
     qf1_loss_step = 0.
     qf2_loss_step = 0.
     policy_loss_step = 0.
     alpha_loss_step = 0.
+    model_j_loss_step = 0.
+    model_d_loss_step = 0.
 
     for i in range(args["num_train_repeat"]):
         env_batch_size = int(args["agent"]["batch_size"] * args["real_ratio"])
@@ -159,18 +173,26 @@ def train_policy_repeats(args, total_step, train_step, env_pool, model_pool, age
         batch_done = (~batch_done).astype(int)
         qf1_loss, qf2_loss, policy_loss, alpha_loss, _ = agent.update_parameters((batch_state, batch_action, batch_reward, batch_next_state, batch_done), args["agent"]["batch_size"], i)
 
+        env_state, env_action, env_reward, env_next_state, env_done = env_pool.sample(args["agent"]["batch_size"])
+
+        model_j_loss, model_d_loss = predict_env.model.optimize(agent, batch_state, batch_action, batch_next_state, batch_reward, env_state, env_action, env_next_state, env_reward, beta)
+
         qf1_loss_step += qf1_loss
         qf2_loss_step += qf2_loss
         policy_loss_step += policy_loss
-        alpha_loss_step += policy_loss
-    
+        alpha_loss_step += alpha_loss
+        model_j_loss_step += model_j_loss
+        model_d_loss_step += model_d_loss
+
     if total_step % args["log_interval"] == 0:
         logger.log_var("q1_loss", qf1_loss_step / args["num_train_repeat"], total_step)
         logger.log_var("q2_loss", qf2_loss_step / args["num_train_repeat"], total_step)
         logger.log_var("policy_loss", policy_loss_step / args["num_train_repeat"], total_step)
         logger.log_var("alpha_loss", alpha_loss_step / args["num_train_repeat"], total_step)
+        logger.log_var("model_j_loss", model_j_loss_step / args["num_train_repeat"], total_step)
+        logger.log_var("model_d_loss", model_d_loss_step / args["num_train_repeat"], total_step)
 
-    return args["num_train_repeat"]
+    return args.num_train_repeat
 
 
 from gym.spaces import Box
@@ -196,6 +218,7 @@ class SingleEnvWrapper(gym.Wrapper):
         obs = np.append(obs, [torso_height, torso_ang])
         return obs
 
+
 @click.command(context_settings=dict(
     ignore_unknown_options=True,
     allow_extra_args=True,
@@ -204,13 +227,13 @@ class SingleEnvWrapper(gym.Wrapper):
 @click.option("--log-dir", default="results/")
 @click.option("--gpu", type=int, default=0)
 @click.option("--print-log", type=bool, default=True)
-@click.option("--seed", type=int, default=35)
+@click.option("--seed", type=int, default=114514)
 @click.option("--info", type=str, default="")
 @click.argument('args', nargs=-1)
 def main(config_path, log_dir, gpu, print_log, seed, info, args):
     print(args)
     
-    alg_name = "mbpo"
+    alg_name = "omo"
 
     args = load_config(config_path, alg_name, args)
 
@@ -241,7 +264,7 @@ def main(config_path, log_dir, gpu, print_log, seed, info, args):
     action_size = np.prod(env.action_space.shape)
     model_args = args["model"]
     if model_args['model_type'] == 'pytorch':
-        env_model = EnsembleDynamicsModel(model_args['num_networks'], model_args['num_elites'], state_size, action_size, model_args['reward_size'], model_args['pred_hidden_size'], use_decay=model_args['use_decay'])
+        env_model = EnsembleDynamicsModel(model_args['num_networks'], model_args['num_elites'], state_size, action_size, model_args['reward_size'], model_args['pred_hidden_size'], use_decay=model_args['use_decay'], jointly_lr=args["jointly_lr"])
     else:
         env_model = construct_model(obs_dim=state_size, act_dim=action_size, hidden_dim=args['pred_hidden_size'], num_networks=args['num_networks'], num_elites=args['num_elites'])
 

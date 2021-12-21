@@ -2,27 +2,27 @@ import os
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
-from sac.utils import  soft_update, hard_update
+from sac.utils import soft_update, hard_update
 from sac.model import GaussianPolicy, QNetwork, DeterministicPolicy
 
 
 class SAC(object):
     def __init__(self, num_inputs, action_space, args):
         torch.autograd.set_detect_anomaly(True)
-        self.gamma = args.gamma
-        self.tau = args.tau
-        self.alpha = args.alpha
+        self.gamma = args['gamma']
+        self.tau = args['tau']
+        self.alpha = args['alpha']
 
-        self.policy_type = args.policy
-        self.target_update_interval = args.target_update_interval
-        self.automatic_entropy_tuning = args.automatic_entropy_tuning
+        self.policy_type = args["policy"]
+        self.target_update_interval = args["target_update_interval"]
+        self.automatic_entropy_tuning = args["automatic_entropy_tuning"]
 
         self.device = torch.device("cuda")
 
-        self.critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(device=self.device)
-        self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
+        self.critic = QNetwork(num_inputs, action_space.shape[0], args["hidden_size"]).to(device=self.device)
+        self.critic_optim = Adam(self.critic.parameters(), lr=args["critic_lr"])
 
-        self.critic_target = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(self.device)
+        self.critic_target = QNetwork(num_inputs, action_space.shape[0], args["hidden_size"]).to(device=self.device)
         hard_update(self.critic_target, self.critic)
 
         if self.policy_type == "Gaussian":
@@ -30,16 +30,16 @@ class SAC(object):
             if self.automatic_entropy_tuning == True:
                 self.target_entropy = -torch.prod(torch.Tensor(action_space.shape).to(self.device)).item()
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
-                self.alpha_optim = Adam([self.log_alpha], lr=args.lr)
+                self.alpha_optim = Adam([self.log_alpha], lr=args["alpha_lr"])
 
-            self.policy = GaussianPolicy(num_inputs, action_space.shape[0], args.hidden_size, action_space).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+            self.policy = GaussianPolicy(num_inputs, action_space.shape[0], args["hidden_size"], action_space).to(self.device)
+            self.policy_optim = Adam(self.policy.parameters(), lr=args["policy_lr"])
 
         else:
             self.alpha = 0
             self.automatic_entropy_tuning = False
-            self.policy = DeterministicPolicy(num_inputs, action_space.shape[0], args.hidden_size, action_space).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+            self.policy = DeterministicPolicy(num_inputs, action_space.shape[0], args["hidden_size"], action_space).to(self.device)
+            self.policy_optim = Adam(self.policy.parameters(), lr=args["policy_lr"])
 
     def select_action(self, state, eval=False):
         state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
