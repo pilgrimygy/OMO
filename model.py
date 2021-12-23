@@ -318,10 +318,14 @@ class EnsembleDynamicsModel():
 
         log_probs = diff_state_dists.log_prob(inputs)
 
-        return log_probs.sum(-1, keepdim=True)
+        diff_reward = (reward.unsqueeze(-1) - model_means[:, :1]) / model_stds[:, :1]
+
+        reward_con = model_means[:, :1] + diff_reward.detach() * model_stds[:, :1]
+
+        return reward_con, log_probs[:, 1:].sum(-1, keepdim=True)
     
     def optimize(self, agent, model_states, model_actions, model_next_states, model_rewards, env_states, env_actions, env_next_states, env_rewards, beta):
-        model_log_probs = self.evaluate(model_states, model_actions, model_next_states, model_rewards)
+        model_reward_con, model_log_probs = self.evaluate(model_states, model_actions, model_next_states, model_rewards)
 
         model_states = torch.from_numpy(model_states).float().to(device)
 
@@ -334,9 +338,9 @@ class EnsembleDynamicsModel():
         qf1, qf2 = agent.critic(model_next_states, model_next_actions)
         q = (qf1 + qf2) / 2
 
-        model_j_loss = -torch.mean(torch.from_numpy(model_rewards).float().to(device) + q.detach() * model_log_probs)
+        model_j_loss = -torch.mean(model_reward_con + q.detach() * model_log_probs)
 
-        env_log_probs = self.evaluate(env_states, env_actions, env_next_states, env_rewards)
+        env_reward_con, env_log_probs = self.evaluate(env_states, env_actions, env_next_states, env_rewards)
 
         model_d_loss = -beta * torch.mean(env_log_probs)
 
