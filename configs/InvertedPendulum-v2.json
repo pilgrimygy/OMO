@@ -1,0 +1,23 @@
+{
+    "env_name": "InvertedPendulum-v2",
+    "num_epoch": 80,
+    "epoch_length": 250,
+    "init_exploration_steps": 500,
+    "model_train_freq": 250,
+    "rollout_min_length": 1,
+    "rollout_max_length": 1,
+    "rollout_min_epoch": 1,
+    "rollout_max_epoch": 80,
+    "num_train_repeat": 10,
+
+    "agent": {
+        "target_entropy": -0.05
+    },
+
+    "beta": {
+        "beta_min": 0.1,
+        "beta_max": 3.0,
+        "beta_min_epoch": 50,
+        "beta_max_epoch": 0
+    }
+}

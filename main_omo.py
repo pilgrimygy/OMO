@@ -28,8 +28,6 @@ def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, mod
 
     exploration_before_start(args, env_sampler, env_pool, agent)
 
-    train_predict_model(args, env_pool, predict_env)
-
     total_step = args["init_exploration_steps"]
 
     logger.log_var("time", time.time() - start, total_step)
@@ -45,7 +43,7 @@ def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, mod
         for i in count():
             cur_step = total_step - start_step
 
-            if cur_step >= args['epoch_length'] and len(env_pool) > args['min_pool_size']:
+            if cur_step >= args['epoch_length'] and len(env_pool) >= args['min_pool_size']:
                 break
             
             if total_step % args['model_train_freq'] == 0 and args['real_ratio'] < 1.0:
@@ -53,7 +51,6 @@ def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, mod
                 train_predict_model(args, env_pool, predict_env)
                 
             if cur_step % args['rollout_freq'] == 0 and args['real_ratio'] < 1.0:
-                
                 new_rollout_length = set_rollout_length(args, epoch_step)
                 if rollout_length != new_rollout_length:
                     logger.log_str(f"Rollout length: {rollout_length} -> {new_rollout_length}")

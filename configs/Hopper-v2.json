@@ -5,6 +5,10 @@
     "rollout_max_length": 15,
     "rollout_min_epoch": 20,
     "rollout_max_epoch": 150,
-    "num_train_repeat": 20
+    "num_train_repeat": 20,
+
+    "agent": {
+        "target_entropy": 0
+    }
 }
   

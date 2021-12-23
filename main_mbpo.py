@@ -56,6 +56,7 @@ def train(args, env_sampler, eval_env_sampler, predict_env, agent, env_pool, mod
                 rollout_model(args, predict_env, agent, model_pool, env_pool, rollout_length, total_step, logger)
 
             cur_state, action, next_state, reward, done, info = env_sampler.sample(agent)
+
             env_pool.push(cur_state, action, reward, next_state, done)
 
             if len(env_pool) > args["min_pool_size"]:
@@ -162,7 +163,7 @@ def train_policy_repeats(args, total_step, train_step, env_pool, model_pool, age
         qf1_loss_step += qf1_loss
         qf2_loss_step += qf2_loss
         policy_loss_step += policy_loss
-        alpha_loss_step += policy_loss
+        alpha_loss_step += alpha_loss
     
     if total_step % args["log_interval"] == 0:
         logger.log_var("q1_loss", qf1_loss_step / args["num_train_repeat"], total_step)
@@ -195,6 +196,7 @@ class SingleEnvWrapper(gym.Wrapper):
         torso_height, torso_ang = self.env.sim.data.qpos[1:3]
         obs = np.append(obs, [torso_height, torso_ang])
         return obs
+
 
 @click.command(context_settings=dict(
     ignore_unknown_options=True,

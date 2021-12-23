@@ -28,7 +28,10 @@ class SAC(object):
         if self.policy_type == "Gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self.automatic_entropy_tuning == True:
-                self.target_entropy = -torch.prod(torch.Tensor(action_space.shape).to(self.device)).item()
+                if args["target_entropy"] == 0:
+                    self.target_entropy = -torch.prod(torch.Tensor(action_space.shape).to(self.device)).item()
+                else:
+                    self.target_entropy = args["target_entropy"]
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
                 self.alpha_optim = Adam([self.log_alpha], lr=args["alpha_lr"])
 
