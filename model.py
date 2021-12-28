@@ -335,6 +335,45 @@ class EnsembleDynamicsModel():
 
         model_next_actions, _, _ = agent.policy.sample(model_next_states)
 
+        next_qf1 = agent.q1_critic(model_next_states, model_next_actions)
+        next_qf2 = agent.q2_critic(model_next_states, model_next_actions)
+        next_q = (next_qf1 + next_qf2) / 2
+
+        qf1 = agent.q1_critic(model_states, model_actions)
+        qf2 = agent.q2_critic(model_states, model_actions)
+        q = (qf1 + qf2) / 2
+
+        w = next_q - (q - model_reward_con)/agent.gamma
+
+        model_j_loss = -torch.mean(model_reward_con + w.detach() * model_log_probs)
+
+        env_reward_con, env_log_probs = self.evaluate(env_states, env_actions, env_next_states, env_rewards)
+
+        model_d_loss = -beta * torch.mean(env_log_probs)
+
+        self.jointly_optimizer.zero_grad()
+
+        (model_j_loss + model_d_loss).backward()
+
+        self.jointly_optimizer.step()
+
+        return model_j_loss.item(), model_d_loss.item()
+    
+    def resampling_optimize(self, agent, model_states, env_states, env_actions, env_next_states, env_rewards, beta, predict_env):
+        with torch.no_grad():
+            model_actions = agent.select_action(model_states)
+        model_next_states, model_rewards, _, _ = predict_env.step(model_states, model_actions)
+
+        model_reward_con, model_log_probs = self.evaluate(model_states, model_actions, model_next_states, model_rewards)
+
+        model_states = torch.from_numpy(model_states).float().to(device)
+
+        model_next_states = torch.from_numpy(model_next_states).float().to(device)
+
+        model_actions = torch.from_numpy(model_actions).float().to(device)
+
+        model_next_actions, _, _ = agent.policy.sample(model_next_states)
+
         qf1, qf2 = agent.critic(model_next_states, model_next_actions)
         q = (qf1 + qf2) / 2
 
@@ -351,6 +390,24 @@ class EnsembleDynamicsModel():
         self.jointly_optimizer.step()
 
         return model_j_loss.item(), model_d_loss.item()
+    
+    def rollout_optimize(self, agent, states, env_states, env_actions, env_next_states, env_rewards, beta, predict_env, rollout_length):
+        rollout_states = []
+        rollout_actions = []
+        rollout_next_states = []
+        rollout_rewards = []
+        for i in range(rollout_length):
+            actions = agent.select_action(states)
+            next_states, rewards, terminals, info = predict_env.step(states, actions)
+            nonterm_mask = ~terminals.squeeze(-1)
+            rollout_states.append(states)
+            rollout_rewards.append(rewards)
+            rollout_actions.append(actions)
+            rollout_next_states.append(next_states)
+            if nonterm_mask.sum() == 0:
+                break
+            states = next_states[nonterm_mask]
+        return self.optimize(agent, np.concatenate(rollout_states, axis=0), np.concatenate(rollout_actions, axis=0), np.concatenate(rollout_next_states, axis=0), np.concatenate(rollout_rewards, axis=0).flatten(), env_states, env_actions, env_next_states, env_rewards, beta)
 
 
 class Swish(nn.Module):
@@ -358,7 +415,7 @@ class Swish(nn.Module):
         super(Swish, self).__init__()
 
     def forward(self, x):
-        x = x * F.sigmoid(x)
+        x = x * torch.sigmoid(x)
         return x
 
 

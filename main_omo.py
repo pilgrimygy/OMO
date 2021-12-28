@@ -174,6 +174,7 @@ def jointly_train_policy_model(args, total_step, train_step, env_pool, model_poo
 
         env_state, env_action, env_reward, env_next_state, env_done = env_pool.sample(args["agent"]["batch_size"])
 
+        #model_j_loss, model_d_loss = predict_env.model.rollout_optimize(agent, batch_state, env_state, env_action, env_next_state, env_reward, beta, predict_env, 1)
         model_j_loss, model_d_loss = predict_env.model.optimize(agent, batch_state, batch_action, batch_next_state, batch_reward, env_state, env_action, env_next_state, env_reward, beta)
 
         qf1_loss_step += qf1_loss
@@ -239,6 +240,7 @@ def main(config_path, log_dir, gpu, print_log, seed, info, args):
     env_name = args['env_name']
 
     # Logger
+    log_dir = log_dir + env_name + '/'
     logger = Logger(log_dir, prefix=env_name+"-"+alg_name+"-"+info, print_to_terminal=print_log)
     logger.log_str("logging to {}".format(logger.log_path))
     logger.log_str_object("parameters", log_dict=args)

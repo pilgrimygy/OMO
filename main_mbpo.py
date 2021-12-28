@@ -219,6 +219,7 @@ def main(config_path, log_dir, gpu, print_log, seed, info, args):
     env_name = args['env_name']
 
     # Logger
+    log_dir = log_dir + env_name + '/'
     logger = Logger(log_dir, prefix=env_name+"-"+alg_name+"-"+info, print_to_terminal=print_log)
     logger.log_str("logging to {}".format(logger.log_path))
     logger.log_str_object("parameters", log_dict=args)
