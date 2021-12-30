@@ -16,7 +16,7 @@
 
     "beta": {
         "beta_min": 0.1,
-        "beta_max": 3.0,
+        "beta_max": 0.1,
         "beta_min_epoch": 50,
         "beta_max_epoch": 0
     }

@@ -95,6 +95,19 @@ class GaussianPolicy(nn.Module):
         log_prob = log_prob.sum(1, keepdim=True)
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
         return action, log_prob, mean
+    
+    def evaluate_actions(self, states, actions):
+        mean, log_std = self.forward(states)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        action_prescale = (actions - self.action_bias) / self.action_scale
+        action_pretanh = torch.atanh(action_prescale)
+        log_prob = normal.log_prob(action_pretanh)
+        # Enforcing Action Bound
+        log_prob = log_prob - torch.log(self.action_scale * (1 - action_prescale.pow(2)) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        entropy = normal.entropy().sum(-1)
+        return log_prob, entropy
 
     def to(self, device):
         self.action_scale = self.action_scale.to(device)

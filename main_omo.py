@@ -174,8 +174,8 @@ def jointly_train_policy_model(args, total_step, train_step, env_pool, model_poo
 
         env_state, env_action, env_reward, env_next_state, env_done = env_pool.sample(args["agent"]["batch_size"])
 
-        #model_j_loss, model_d_loss = predict_env.model.rollout_optimize(agent, batch_state, env_state, env_action, env_next_state, env_reward, beta, predict_env, 1)
-        model_j_loss, model_d_loss = predict_env.model.optimize(agent, batch_state, batch_action, batch_next_state, batch_reward, env_state, env_action, env_next_state, env_reward, beta)
+        #model_j_loss, model_d_loss = predict_env.model.rollout_optimize(agent, batch_state, env_state, env_action, env_next_state, env_reward, beta, total_step, predict_env, 1)
+        model_j_loss, model_d_loss = predict_env.model.optimize(agent, batch_state, batch_action, batch_next_state, batch_reward, env_state, env_action, env_next_state, env_reward, beta, total_step, args["agent"]["batch_size"])
 
         qf1_loss_step += qf1_loss
         qf2_loss_step += qf2_loss

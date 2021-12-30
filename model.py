@@ -324,7 +324,7 @@ class EnsembleDynamicsModel():
 
         return reward_con, log_probs[:, 1:].sum(-1, keepdim=True)
     
-    def optimize(self, agent, model_states, model_actions, model_next_states, model_rewards, env_states, env_actions, env_next_states, env_rewards, beta):
+    def optimize(self, agent, model_states, model_actions, model_next_states, model_rewards, env_states, env_actions, env_next_states, env_rewards, beta, total_step, batch_size):
         model_reward_con, model_log_probs = self.evaluate(model_states, model_actions, model_next_states, model_rewards)
 
         model_states = torch.from_numpy(model_states).float().to(device)
@@ -349,7 +349,7 @@ class EnsembleDynamicsModel():
 
         env_reward_con, env_log_probs = self.evaluate(env_states, env_actions, env_next_states, env_rewards)
 
-        model_d_loss = -beta * torch.mean(env_log_probs)
+        model_d_loss = -beta * torch.mean(env_log_probs) * total_step / batch_size
 
         self.jointly_optimizer.zero_grad()
 
@@ -359,7 +359,7 @@ class EnsembleDynamicsModel():
 
         return model_j_loss.item(), model_d_loss.item()
     
-    def resampling_optimize(self, agent, model_states, env_states, env_actions, env_next_states, env_rewards, beta, predict_env):
+    def resampling_optimize(self, agent, model_states, env_states, env_actions, env_next_states, env_rewards, beta, total_step, predict_env):
         with torch.no_grad():
             model_actions = agent.select_action(model_states)
         model_next_states, model_rewards, _, _ = predict_env.step(model_states, model_actions)
@@ -391,7 +391,7 @@ class EnsembleDynamicsModel():
 
         return model_j_loss.item(), model_d_loss.item()
     
-    def rollout_optimize(self, agent, states, env_states, env_actions, env_next_states, env_rewards, beta, predict_env, rollout_length):
+    def rollout_optimize(self, agent, states, env_states, env_actions, env_next_states, env_rewards, beta, total_step, predict_env, rollout_length):
         rollout_states = []
         rollout_actions = []
         rollout_next_states = []
